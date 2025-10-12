@@ -1,0 +1,7 @@
+/src/*.json
+/src/*.txt
+/src/*.xlsx
+/venv
+/.idea
+bkup
+*.json
