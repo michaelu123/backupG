@@ -54,7 +54,6 @@ exportTypesFor = {
     ],
     "application/vnd.google-apps.site": [("text/plain", ".txt")],
     "application/vnd.google-apps.mail-layout": [("text/plain", ".txt")],
-    "application/vnd.google-apps.shortcut":  [("text/plain", ".txt")],
 }
 
 
@@ -247,7 +246,7 @@ class GDrivePerms:
         done = False
         while done is False:
             status, done = downloader.next_chunk()
-            print(f"Download {fpath} {int(status.progress() * 100)}.")
+            print(f"Export {fpath} {int(status.progress() * 100)}.")
         content = fileIO.getvalue()
         with open(file2Path, "wb") as file2:
             file2.write(content)
