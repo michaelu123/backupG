@@ -1,7 +1,39 @@
 import os
+import json
+import csv
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+
+class excel2(csv.Dialect):
+    """Describe the usual properties of Excel-generated CSV files."""
+    delimiter = ';'
+    quotechar = '"'
+    doublequote = True
+    skipinitialspace = False
+    lineterminator = '\n'
+    quoting = csv.QUOTE_MINIMAL
+
+
+class CsvWriter:
+    def __init__(self, f):
+        self.fieldNames = [
+            "user",
+            "id",
+            "summary",
+            "description",
+            "access_role",
+        ]
+
+        csv.register_dialect("excel2", excel2)
+        self.writer = csv.DictWriter(
+            f, self.fieldNames, dialect="excel2", extrasaction="ignore")
+        self.writer.writeheader()
+
+    def write(self, entry):
+        self.writer.writerow(entry)
+
 
 # --- Configuration ---
 # Path to your service account key file
@@ -56,27 +88,47 @@ def get_calendars_for_user(user_email):
             'calendar', 'v3', credentials=impersonated_creds)
 
         page_token = None
+        rows = []
         while True:
             calendar_list = calendar_service.calendarList().list(
                 pageToken=page_token).execute()
             for calendar_list_entry in calendar_list.get('items', []):
-                access_role = calendar_list_entry.get('accessRole')
-                summary = calendar_list_entry.get('summary', 'No Summary')
+                # print(json.dumps(calendar_list_entry))
+                access_role = calendar_list_entry.get(
+                    'accessRole', "")
+                summary = calendar_list_entry.get('summary', '')
+                description = calendar_list_entry.get(
+                    'description', '')
                 cal_id = calendar_list_entry.get('id')
-                # print(f"  - Calendar: '{summary}' (ID: {cal_id})")
-                owner_info = ""
-                if access_role == 'owner':
-                    owner_info = f"(Owner: {user_email})"
-                print(f"  - Calendar: '{summary}' {owner_info} (ID: {cal_id})")
-
+                row = {
+                    "user": user_email,
+                    "id": cal_id,
+                    "summary": summary,
+                    "description": description,
+                    "access_role": access_role,
+                }
+                rows.append(row)
+                print(
+                    f"  - Summary:'{summary}' Description: '{description}' AccessRole:{access_role} ID:{cal_id}")
+                # cal_resource = calendar_service.calendars().get(calendarId=cal_id).execute()
+                # # print(json.dumps(cal_resource, indent=2))
+                # assert (cal_resource.get('summary', 'No Summary') == summary)
+                # assert (cal_resource.get('description',
+                #         'No Description') == description)
+                # dataOwner = cal_resource.get("dataOwner", "No Data Owner")
+                # print(
+                #     f"  - Summary:'{summary}' Description: '{description}' AccessRole:{access_role} ID:{cal_id} DataOwner:{dataOwner}")
             page_token = calendar_list.get('nextPageToken')
             if not page_token:
                 break
+        return rows
     except HttpError as error:
         # Common errors include a user not having Calendar enabled.
         print(f"  - Could not retrieve calendars. Error: {error.reason}")
+        return []
     except Exception as e:
         print(f"  - An unexpected error occurred: {e}")
+        return []
 
 
 def main():
@@ -107,10 +159,17 @@ def main():
         return
 
     # 3. Iterate through each user and list their calendars
+    rows = []
     for user in users:
         user_email = user['primaryEmail']
         print(f"\nProcessing calendars for user: {user_email}")
-        get_calendars_for_user(user_email)
+        rows.extend(get_calendars_for_user(user_email))
+
+    with open("cal.csv", "w", encoding="utf-8-sig") as csvOutfile:
+        csvWriter = CsvWriter(csvOutfile)
+        for row in rows:
+            csvWriter.write(row)
+    print("Ausgabedatei geschrieben, ", len(rows), "Einträge")
 
 
 if __name__ == '__main__':
